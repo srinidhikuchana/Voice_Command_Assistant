@@ -240,119 +240,6 @@ div[data-testid="stAudioInput"] audio {{
     border-radius: 8px !important;
 }}
  
-/* ── Pin button ── */
-.pin-btn-wrap {{
-    display: flex; align-items: center; justify-content: center;
-    height: 100%; padding-top: 4px;
-}}
-
-/* ── + Quick Action button ── */
-.stButton > button[data-testid="stBaseButton-secondary"] {{
-    border-radius: 50% !important;
-}}
-#pin-fab {{
-    width: 48px; height: 48px;
-    background: linear-gradient(135deg, #e07b4f, #d4622a) !important;
-    border: none !important;
-    border-radius: 50% !important;
-    color: #fff !important; font-size: 26px !important; font-weight: 300 !important;
-    line-height: 1 !important;
-    box-shadow: 0 4px 18px rgba(224,123,79,0.45) !important;
-    padding: 0 !important; margin: 0 auto !important;
-    display: flex !important; align-items: center !important;
-    justify-content: center !important;
-    transition: all 0.22s cubic-bezier(.4,0,.2,1) !important;
-    cursor: pointer !important;
-    min-width: 48px !important;
-}}
-#pin-fab:hover {{
-    transform: scale(1.12) rotate(45deg) !important;
-    box-shadow: 0 8px 28px rgba(224,123,79,0.55) !important;
-}}
-
-/* ── Floating Quick-Actions card ── */
-.qmenu-wrap {{
-    background: {bubble_ai_bg};
-    border: 1.5px solid {bubble_ai_border};
-    border-radius: 22px;
-    padding: 16px 16px 12px;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.13);
-    margin: 8px 0 4px;
-    animation: popIn 0.18s cubic-bezier(.4,0,.2,1);
-}}
-@keyframes popIn {{
-    from {{ opacity:0; transform: translateY(-8px) scale(0.97); }}
-    to   {{ opacity:1; transform: translateY(0)    scale(1);    }}
-}}
-.qmenu-title {{
-    font-size: 10px; font-weight: 800; letter-spacing: 2.5px;
-    text-transform: uppercase; color: {text_sub};
-    margin-bottom: 12px;
-}}
-.qmenu-grid {{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-}}
-.qmenu-pill {{
-    display: flex; align-items: center; gap: 8px;
-    padding: 10px 14px;
-    border-radius: 50px;
-    cursor: pointer;
-    font-size: 13px; font-weight: 700;
-    letter-spacing: 0.2px;
-    border: none; outline: none;
-    transition: all 0.18s ease;
-    white-space: nowrap;
-    text-decoration: none !important;
-}}
-.qmenu-pill:hover {{ transform: translateY(-2px); filter: brightness(1.06); }}
-
-.pill-orange  {{ background: linear-gradient(135deg,#fff0e8,#ffe4d0); color:#c05520; }}
-.pill-blue    {{ background: linear-gradient(135deg,#e8f0fe,#d8e8ff); color:#1a56a8; }}
-.pill-green   {{ background: linear-gradient(135deg,#e8fef0,#d0f5e0); color:#1a7a40; }}
-.pill-purple  {{ background: linear-gradient(135deg,#f3e8ff,#e8d5ff); color:#6b28a8; }}
-
-/* ── Audio error suppression ── */
-div[data-testid="stAudioInput"] .stAlert,
-div[data-testid="stAudioInput"] [data-testid="stNotificationContentError"],
-div[data-testid="stAudioInput"] [data-testid="stNotificationContentWarning"] {{
-    display: none !important;
-}}
-audio::-webkit-media-controls-enclosure {{
-    display: none !important;
-}}
-div[data-testid="stAudioInput"] > div > div[class*="error"],
-div[data-testid="stAudioInput"] > div > p {{
-    display: none !important;
-}}
-/* Hide Streamlit button boxes inside pin menu area */
-.qmenu-wrap .stButton > button {{
-    border: none !important; border-radius: 50px !important;
-    height: auto !important; padding: 9px 14px !important;
-    font-size: 13px !important; font-weight: 700 !important;
-    box-shadow: none !important; text-shadow: none !important;
-    letter-spacing: 0.2px !important;
-}}
-
-/* ── + FAB pin button ── */
-button[data-testid="stBaseButton-secondary"][kind="secondary"]:has(+ *) {{
-    border-radius: 50% !important;
-}}
-div[data-testid="column"]:nth-child(2) .stButton > button {{
-    background: linear-gradient(135deg, #e07b4f, #d4622a) !important;
-    border: none !important; border-radius: 50% !important;
-    width: 50px !important; height: 50px !important; min-width: 50px !important;
-    color: #fff !important; font-size: 26px !important; font-weight: 300 !important;
-    box-shadow: 0 4px 18px rgba(224,123,79,0.4) !important;
-    padding: 0 !important; text-shadow: none !important;
-    transition: all 0.22s cubic-bezier(.4,0,.2,1) !important;
-}}
-div[data-testid="column"]:nth-child(2) .stButton > button:hover {{
-    transform: rotate(45deg) scale(1.1) !important;
-    box-shadow: 0 8px 28px rgba(224,123,79,0.55) !important;
-}}
-
 /* ── Main buttons ── */
 .stButton > button {{
     background: linear-gradient(135deg, #d4622a, #e07b4f) !important;
@@ -572,99 +459,21 @@ TEXT_EMOTION_PATTERNS = {
  
 def detect_emotion_from_text(text: str) -> str:
     """
-    Detect emotion from text using aggressive keyword matching.
+    Detect emotion from text using keyword matching.
     Returns emotion key: happy, sad, angry, fear, surprise, disgust, or neutral.
     """
     text_lower = text.lower()
-    anger_pats = [
-        r"\b(angry|anger|furious|frustrated|frustration|frustrating|annoyed|annoying|"
-        r"irritated|irritating|rage|raging|mad|livid|outraged|hate|hated|hating|"
-        r"disgusting|terrible|awful|fed up|sick of|done with|cant stand|enough|"
-        r"unfair|stupid|idiot|idiots|ridiculous|absurd|unacceptable|this is wrong|"
-        r"not okay|not ok|nonsense|useless|pathetic|waste|doesnt work|not working|"
-        r"keeps failing|always fails|so annoying|what the hell|this sucks|this is trash|"
-        r"ugh|argh|damn|dammit|screw this|forget it|fed up with)\b"
-    ]
-    sad_pats = [
-        r"\b(sad|sadness|unhappy|depressed|depression|crying|cry|cried|tears|"
-        r"heartbreak|heartbroken|grief|grieving|lonely|loneliness|miserable|"
-        r"upset|down|blue|devastated|hopeless|worthless|empty|lost|broken|hurt|"
-        r"pain|suffering|exhausted|miss you|miss him|miss her|i miss|can't go on|"
-        r"giving up|feel like crying|feeling low|not doing well|feeling bad|feel terrible)\b"
-    ]
-    happy_pats = [
-        r"\b(happy|happiness|excited|excitement|joy|joyful|great|amazing|wonderful|"
-        r"fantastic|awesome|love|loved|thrilled|delighted|ecstatic|cheerful|"
-        r"glad|elated|blessed|grateful|thankful|celebrating|winning|won|succeeded|"
-        r"success|good news|best day|so good|feeling good|yay|woohoo|brilliant|perfect|excellent)\b"
-    ]
-    fear_pats = [
-        r"\b(scared|fear|afraid|terrified|terror|anxious|anxiety|worried|worry|"
-        r"nervous|panic|panicking|dread|dreading|nightmare|unsafe|danger|dangerous|"
-        r"frightened|horrified|stressed|stress|overwhelmed|cant sleep|losing my mind|"
-        r"what if|im scared|im afraid|feel threatened)\b"
-    ]
-    surprise_pats = [
-        r"\b(surprised|shocked|shock|shocking|unbelievable|cant believe|didnt expect|"
-        r"unexpected|wow|omg|oh my god|seriously|no way|mind blown|so sudden|"
-        r"out of nowhere|wait what|never expected)\b"
-    ]
-    disgust_pats = [
-        r"\b(disgusting|gross|revolting|nasty|nauseating|appalling|horrible|vile|"
-        r"repulsive|eww|yuck|makes me sick|cant believe they|how could they)\b"
-    ]
-    scores = {"angry": 0, "sad": 0, "happy": 0, "fear": 0, "surprise": 0, "disgust": 0}
-    for p in anger_pats:    scores["angry"]   += len(re.findall(p, text_lower))
-    for p in sad_pats:      scores["sad"]     += len(re.findall(p, text_lower))
-    for p in happy_pats:    scores["happy"]   += len(re.findall(p, text_lower))
-    for p in fear_pats:     scores["fear"]    += len(re.findall(p, text_lower))
-    for p in surprise_pats: scores["surprise"]+= len(re.findall(p, text_lower))
-    for p in disgust_pats:  scores["disgust"] += len(re.findall(p, text_lower))
-    best = max(scores, key=scores.get)
-    return best if scores[best] > 0 else "neutral"
-
-
-def detect_emotion_via_ai(text: str, openrouter_key: str) -> str:
-    """
-    Use GPT-4o-mini to detect emotion — far more accurate than keyword matching alone.
-    Falls back to keyword detection on failure.
-    """
-    if not openrouter_key:
-        return detect_emotion_from_text(text)
-    try:
-        r = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {openrouter_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://klyra.streamlit.app",
-                "X-Title": "Klyra",
-            },
-            json={
-                "model": "openai/gpt-4o-mini",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an expert emotion classifier. Analyze the emotional tone carefully. "
-                            "Frustration, irritation, stress = angry. "
-                            "Disappointment, loneliness, tiredness = sad. "
-                            "Reply with EXACTLY ONE word: happy, sad, angry, fear, surprise, disgust, or neutral. "
-                            "No punctuation, no explanation."
-                        ),
-                    },
-                    {"role": "user", "content": text},
-                ],
-                "max_tokens": 5,
-                "temperature": 0.0,
-            },
-            timeout=6,
-        )
-        result = r.json()["choices"][0]["message"]["content"].strip().lower().split()[0]
-        valid = {"happy", "sad", "angry", "fear", "surprise", "disgust", "neutral"}
-        return result if result in valid else detect_emotion_from_text(text)
-    except Exception:
-        return detect_emotion_from_text(text)
+    scores = {emotion: 0 for emotion in TEXT_EMOTION_PATTERNS}
+ 
+    for emotion, patterns in TEXT_EMOTION_PATTERNS.items():
+        for pattern in patterns:
+            matches = re.findall(pattern, text_lower)
+            scores[emotion] += len(matches)
+ 
+    best_emotion = max(scores, key=scores.get)
+    if scores[best_emotion] == 0:
+        return "neutral"
+    return best_emotion
  
  
 def merge_emotions(text_emotion: str, voice_emotion: dict | None) -> str:
@@ -1059,12 +868,14 @@ def tts_autoplay(text: str, lang_code: str):
     buf = io.BytesIO()
     tts.write_to_fp(buf)
     b64 = base64.b64encode(buf.getvalue()).decode()
-    # Use JS Audio object instead of hidden <audio> tag to avoid browser "error occurred"
-    st.markdown(
-        '<div class="speaking-badge"><div class="pulse-dot"></div> Klyra is speaking\u2026</div>'
-        f'<script>(function(){{try{{var a=new Audio("data:audio/mp3;base64,{b64}");a.play().catch(function(){{}});}}catch(e){{}}}})();</script>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(f"""
+    <audio autoplay style="display:none;">
+        <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+    </audio>
+    <div class="speaking-badge">
+        <div class="pulse-dot"></div> Klyra is speaking…
+    </div>
+    """, unsafe_allow_html=True)
  
  
 def process_user_input(
@@ -1100,7 +911,7 @@ def process_user_input(
         active_lang = detected
  
     # ── Detect emotion from text ──────────────────────────────────────────────
-    text_emotion_key = detect_emotion_via_ai(user_text, openrouter_key)
+    text_emotion_key = detect_emotion_from_text(user_text)
  
     # ── Merge text + voice emotion ────────────────────────────────────────────
     final_emotion_key = merge_emotions(text_emotion_key, voice_emotion)
@@ -1315,187 +1126,17 @@ active_lang = st.session_state.get("detected_lang", "en") if auto_detect_lang el
 if active_lang in ("auto", ""):
     active_lang = "en"
  
-# ── Input bar: mic | + | text box | Send ─────────────────────────────────────
-col_mic, col_pin, col_text, col_send = st.columns([1.1, 0.7, 5, 1.4])
+# ── Input bar: mic | text box | Send ─────────────────────────────────────────
+# st.audio_input auto-starts on tap and auto-stops on silence — no manual buttons needed.
+# A single response is guaranteed via audio hash deduplication (last_audio_hash).
+col_mic, col_text, col_send = st.columns([1.1, 5, 1.4])
 with col_mic:
     audio_value = st.audio_input("Speak", label_visibility="collapsed", key="mic_input")
-with col_pin:
-    st.markdown('<div style="height:6px"></div>', unsafe_allow_html=True)
-    pin_btn = st.button("＋", key="pin_btn", help="Quick Actions")
 with col_text:
-    text_input = st.text_input("msg", placeholder="Type a message…",
-                               label_visibility="collapsed", key="text_msg")
+    text_input  = st.text_input("msg", placeholder="Type a message…",
+                                label_visibility="collapsed", key="text_msg")
 with col_send:
     send_btn = st.button("Send ➤", key="send_btn")
-
-# ── Quick-Actions floating card ────────────────────────────────────────────────
-if "show_pin_menu" not in st.session_state:
-    st.session_state["show_pin_menu"] = False
-if pin_btn:
-    st.session_state["show_pin_menu"] = not st.session_state["show_pin_menu"]
-
-if st.session_state.get("show_pin_menu", False):
-    st.markdown("""
-    <div class="qmenu-wrap">
-      <div class="qmenu-title">✦ Quick Actions</div>
-      <div class="qmenu-grid" id="qmenu-grid">
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    qa1, qa2, qa3, qa4 = st.columns(4)
-
-    with qa1:
-        if st.button("📋 Summary", key="pin_summarize", use_container_width=True):
-            st.session_state["show_pin_menu"] = False
-            if st.session_state["history"]:
-                convo = "\n".join(
-                    f"{'User' if m['role']=='user' else 'Klyra'}: {m['content']}"
-                    for m in st.session_state["history"][-20:]
-                )
-                with st.spinner("Summarizing…"):
-                    try:
-                        r = requests.post(
-                            "https://openrouter.ai/api/v1/chat/completions",
-                            headers={"Authorization": f"Bearer {openrouter_key}",
-                                     "Content-Type": "application/json",
-                                     "HTTP-Referer": "https://klyra.streamlit.app",
-                                     "X-Title": "Klyra"},
-                            json={"model": "openai/gpt-4o-mini",
-                                  "messages": [{"role": "user",
-                                                "content": f"Summarize this conversation in 3-4 clear sentences:\n\n{convo}"}],
-                                  "max_tokens": 250},
-                            timeout=20,
-                        )
-                        summary = r.json()["choices"][0]["message"]["content"].strip()
-                        st.session_state["history"].append({"role": "assistant", "content": f"📋 **Conversation Summary:**\n\n{summary}"})
-                        st.session_state["pending_tts"] = (summary, active_lang)
-                    except Exception as e:
-                        st.error(f"Summary failed: {e}")
-            else:
-                st.info("No conversation yet.")
-            st.rerun()
-
-    with qa2:
-        if st.button("🔊 Read Aloud", key="pin_read_aloud", use_container_width=True):
-            st.session_state["show_pin_menu"] = False
-            last_ai = next(
-                (m["content"] for m in reversed(st.session_state["history"]) if m["role"] == "assistant"), None
-            )
-            if last_ai:
-                st.session_state["pending_tts"] = (last_ai, active_lang)
-            else:
-                st.info("No reply to read aloud yet.")
-            st.rerun()
-
-    with qa3:
-        if st.button("🔑 Key Points", key="pin_keypoints", use_container_width=True):
-            st.session_state["show_pin_menu"] = False
-            if st.session_state["history"]:
-                convo = "\n".join(
-                    f"{'User' if m['role']=='user' else 'Klyra'}: {m['content']}"
-                    for m in st.session_state["history"][-20:]
-                )
-                with st.spinner("Extracting key points…"):
-                    try:
-                        r = requests.post(
-                            "https://openrouter.ai/api/v1/chat/completions",
-                            headers={"Authorization": f"Bearer {openrouter_key}",
-                                     "Content-Type": "application/json",
-                                     "HTTP-Referer": "https://klyra.streamlit.app",
-                                     "X-Title": "Klyra"},
-                            json={"model": "openai/gpt-4o-mini",
-                                  "messages": [{"role": "user",
-                                                "content": f"Extract 3-5 key points as a numbered list:\n\n{convo}"}],
-                                  "max_tokens": 250},
-                            timeout=20,
-                        )
-                        points = r.json()["choices"][0]["message"]["content"].strip()
-                        st.session_state["history"].append({"role": "assistant", "content": f"🔑 **Key Points:**\n\n{points}"})
-                        st.session_state["pending_tts"] = (points, active_lang)
-                    except Exception as e:
-                        st.error(f"Key points failed: {e}")
-            else:
-                st.info("No conversation yet.")
-            st.rerun()
-
-    with qa4:
-        if st.button("🌐 Translate", key="pin_translate", use_container_width=True):
-            st.session_state["show_pin_menu"] = False
-            last_ai = next(
-                (m["content"] for m in reversed(st.session_state["history"]) if m["role"] == "assistant"), None
-            )
-            if last_ai:
-                target = active_lang if active_lang not in ("auto", "en", "") else "hi"
-                lang_display = {"hi": "Hindi", "te": "Telugu", "ta": "Tamil", "fr": "French",
-                                "de": "German", "es": "Spanish", "ar": "Arabic", "zh-cn": "Chinese"}.get(target, target.upper())
-                with st.spinner(f"Translating to {lang_display}…"):
-                    try:
-                        r = requests.post(
-                            "https://openrouter.ai/api/v1/chat/completions",
-                            headers={"Authorization": f"Bearer {openrouter_key}",
-                                     "Content-Type": "application/json",
-                                     "HTTP-Referer": "https://klyra.streamlit.app",
-                                     "X-Title": "Klyra"},
-                            json={"model": "openai/gpt-4o-mini",
-                                  "messages": [{"role": "user",
-                                                "content": f"Translate to {lang_display}. Return only the translation:\n\n{last_ai}"}],
-                                  "max_tokens": 300},
-                            timeout=20,
-                        )
-                        translated = r.json()["choices"][0]["message"]["content"].strip()
-                        st.session_state["history"].append({"role": "assistant", "content": f"🌐 **Translation ({lang_display}):**\n\n{translated}"})
-                        st.session_state["pending_tts"] = (translated, target)
-                    except Exception as e:
-                        st.error(f"Translation failed: {e}")
-            else:
-                st.info("No reply to translate yet.")
-            st.rerun()
-
-    # Style the 4 pill buttons inside the card — remove all Streamlit button chrome
-    st.markdown("""
-    <style>
-    /* Target all buttons in the quick-action row */
-    div[data-testid="column"]:has(button[data-testid="stBaseButton-secondary"][key="pin_summarize"]) ~ div .stButton > button,
-    button[data-testid="stBaseButton-secondary"][key="pin_summarize"],
-    button[data-testid="stBaseButton-secondary"][key="pin_read_aloud"],
-    button[data-testid="stBaseButton-secondary"][key="pin_keypoints"],
-    button[data-testid="stBaseButton-secondary"][key="pin_translate"] {
-        border-radius: 50px !important;
-        height: 42px !important;
-        padding: 0 10px !important;
-        font-size: 12px !important;
-        font-weight: 700 !important;
-        box-shadow: none !important;
-        text-shadow: none !important;
-        border: none !important;
-        letter-spacing: 0px !important;
-    }
-    button[data-testid="stBaseButton-secondary"][key="pin_summarize"]   { background: linear-gradient(135deg,#fff0e8,#ffe4d0) !important; color:#c05520 !important; border:1.5px solid #f0c8a0 !important; }
-    button[data-testid="stBaseButton-secondary"][key="pin_read_aloud"]  { background: linear-gradient(135deg,#e8f0fe,#d8e8ff) !important; color:#1a56a8 !important; border:1.5px solid #aac8f0 !important; }
-    button[data-testid="stBaseButton-secondary"][key="pin_keypoints"]   { background: linear-gradient(135deg,#e8fef0,#d0f5e0) !important; color:#1a7a40 !important; border:1.5px solid #a0e0b8 !important; }
-    button[data-testid="stBaseButton-secondary"][key="pin_translate"]   { background: linear-gradient(135deg,#f3e8ff,#e8d5ff) !important; color:#6b28a8 !important; border:1.5px solid #c8a0e8 !important; }
-    button[data-testid="stBaseButton-secondary"][key="pin_summarize"]:hover   { background: linear-gradient(135deg,#f0c8a0,#e8b880) !important; transform: translateY(-2px) !important; }
-    button[data-testid="stBaseButton-secondary"][key="pin_read_aloud"]:hover  { background: linear-gradient(135deg,#d8e8ff,#b8d0ff) !important; transform: translateY(-2px) !important; }
-    button[data-testid="stBaseButton-secondary"][key="pin_keypoints"]:hover   { background: linear-gradient(135deg,#d0f5e0,#a8ecc0) !important; transform: translateY(-2px) !important; }
-    button[data-testid="stBaseButton-secondary"][key="pin_translate"]:hover   { background: linear-gradient(135deg,#e8d5ff,#d0b8ff) !important; transform: translateY(-2px) !important; }
-    /* + FAB button */
-    button[data-testid="stBaseButton-secondary"][key="pin_btn"] {
-        background: linear-gradient(135deg, #e07b4f, #d4622a) !important;
-        border: none !important; border-radius: 50% !important;
-        width: 48px !important; height: 48px !important; min-width: 48px !important;
-        color: #fff !important; font-size: 24px !important; font-weight: 300 !important;
-        box-shadow: 0 4px 18px rgba(224,123,79,0.45) !important;
-        padding: 0 !important; text-shadow: none !important;
-        transition: all 0.22s cubic-bezier(.4,0,.2,1) !important;
-    }
-    button[data-testid="stBaseButton-secondary"][key="pin_btn"]:hover {
-        transform: rotate(45deg) scale(1.1) !important;
-        box-shadow: 0 8px 28px rgba(224,123,79,0.55) !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
  
  
 # ── Handle voice input — loop-safe via audio hash ────────────────────────────
