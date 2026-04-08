@@ -11,8 +11,6 @@ from gtts import gTTS
 from groq import Groq
 
 st.set_page_config(page_title="Klyra", page_icon="🎙️", layout="centered")
-
-# ── Theme CSS (Light + Dark mode) ─────────────────────────────────────────────
 def get_theme_css(dark_mode: bool) -> str:
     if dark_mode:
         bg_grad        = "linear-gradient(160deg, #1e1b17 0%, #16140f 50%, #0f0d0a 100%)"
@@ -306,7 +304,6 @@ div[data-testid="stAudioInput"] audio {{
 </style>
 """
 
-# ── Constants ─────────────────────────────────────────────────────────────────
 today_str    = date.today().strftime("%B %d, %Y")
 current_year = date.today().year
 
@@ -325,7 +322,7 @@ SYSTEM_PROMPT = (
     "Your name is Klyra. Never refer to yourself as VoxAI or any other name. "
     "IMPORTANT — EMOTION-AWARE RESPONSES: "
     "If the user's emotion is detected as SAD or their words seem sad/upset/down/depressed/lonely/crying, "
-    "start your response with a caring message like 'Aww, why are you sad? Is everything okay? I'm here for you 💙' "
+    "start your response with a caring message like 'Aww, why are you sad? Is everything okay? I'm here for you...' "
     "If the user's emotion is EXCITED or HAPPY or their words show excitement (yay/woohoo/amazing/awesome/thrilled), "
     "start your response with 'Wohoooo!! 🎉' and match their energy enthusiastically. "
     "If the user is ANGRY, respond calmly and empathetically. "
@@ -368,8 +365,6 @@ EMOTION_CONFIG = {
     "surprise": {"emoji": "😲", "label": "Surprised","css": "emotion-surprise"},
     "excited":  {"emoji": "🤩", "label": "Excited",  "css": "emotion-excited"},
 }
-
-# SpeechBrain label → our emotion key mapping
 SB_LABEL_MAP = {
     "neu": "neutral", "hap": "happy", "sad": "sad",
     "ang": "angry",   "fea": "fear",  "dis": "disgust",
@@ -382,7 +377,6 @@ SB_LABEL_MAP = {
     "calm": "neutral", "boredom": "neutral",
 }
 
-# ── SpeechBrain emotion model (loaded once) ───────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def load_speechbrain_model():
     """Load speechbrain/emotion-recognition-wav2vec2-IEMOCAP from HuggingFace."""
@@ -428,8 +422,6 @@ def detect_emotion_from_audio(audio_bytes: bytes) -> dict | None:
     except Exception:
         return None
 
-
-# ── Word-based emotion detection ──────────────────────────────────────────────
 SAD_WORDS = {
     "sad", "unhappy", "depressed", "depression", "lonely", "alone", "crying", "cry",
     "tears", "hurt", "pain", "heartbroken", "broken", "miss", "lost", "hopeless",
@@ -471,17 +463,12 @@ def merge_emotions(audio_emo: dict | None, text_emo: dict) -> dict:
     """
     if audio_emo is None:
         return text_emo
-    # If audio detected non-neutral with decent confidence, trust it
     if audio_emo["label"] != "Neutral" and audio_emo.get("confidence", 0) >= 45:
         return audio_emo
-    # If text detected strong emotion, use text
     if text_emo["label"] != "Neutral":
         return text_emo
-    # Both neutral — return audio neutral (has confidence score)
     return audio_emo
 
-
-# ── Voice command mappings ────────────────────────────────────────────────────
 def check_voice_command(text: str):
     lower = text.strip().lower()
     for cmd in ["tell time", "what time is it", "what's the time", "current time"]:
@@ -669,7 +656,7 @@ def transcribe_audio(audio_bytes: bytes, groq_key: str, lang_code: str) -> str:
 
 def render_emotion_badge(emotion: dict):
     conf_str = f" · {emotion['confidence']:.0f}%" if emotion.get("confidence", 0) > 0 else ""
-    src_icon = "🎤" if emotion.get("source") == "audio" else "💬"
+    src_icon = "" if emotion.get("source") == "audio" else ""
     src_str  = f" · {src_icon} {'voice' if emotion.get('source') == 'audio' else 'text'} analysis"
     st.markdown(
         f'<div class="emotion-badge {emotion["css"]}">'
@@ -701,7 +688,7 @@ def process_user_input(user_text: str, openrouter_key: str, weather_key: str,
                        active_lang: str, auto_detect: bool, detected_emotion: dict = None):
     handled, cmd_response, url = check_voice_command(user_text)
     if handled:
-        st.markdown('<div class="cmd-badge">⚡ Voice command detected</div>', unsafe_allow_html=True)
+        st.markdown('<div class="cmd-badge">Voice command detected</div>', unsafe_allow_html=True)
         if url:
             st.markdown(f'<a href="{url}" target="_blank" style="color:#1a73e8;font-weight:700;">🔗 Click here to open →</a>', unsafe_allow_html=True)
         st.session_state["history"].append({"role": "user", "content": user_text})
@@ -736,8 +723,6 @@ def process_user_input(user_text: str, openrouter_key: str, weather_key: str,
             st.error(f"AI error: {e}")
             st.session_state["history"].pop()
 
-
-# ── API keys ──────────────────────────────────────────────────────────────────
 try:
     openrouter_key = st.secrets["OPENROUTER_API_KEY"]
     groq_key       = st.secrets["GROQ_API_KEY"]
@@ -749,24 +734,19 @@ try:
     weather_key = st.secrets.get("OPENWEATHER_API_KEY", "")
 except Exception:
     weather_key = ""
-
-# ── Session state init ────────────────────────────────────────────────────────
 for k, v in {
     "history": [], "pending_tts": None, "dark_mode": False,
     "detected_lang": "en", "last_audio_hash": "",
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
-
-# ── Apply theme ───────────────────────────────────────────────────────────────
 st.markdown(get_theme_css(st.session_state["dark_mode"]), unsafe_allow_html=True)
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### 🎙️ Klyra")
     st.markdown("---")
 
-    st.markdown("**🌙 Appearance**")
+    st.markdown("**Appearance**")
     dark_toggle = st.toggle("Dark Mode", value=st.session_state["dark_mode"], help="Switch between light and dark theme")
     if dark_toggle != st.session_state["dark_mode"]:
         st.session_state["dark_mode"] = dark_toggle
@@ -778,7 +758,7 @@ with st.sidebar:
     else:
         st.warning("API keys missing")
 
-    st.markdown("**🌐 Language**")
+    st.markdown("**Language**")
     lang_name = st.selectbox("Language", list(LANGUAGES.keys()), index=0, label_visibility="collapsed")
     lang_code = LANGUAGES[lang_name]
     auto_detect_lang = (lang_code == "auto")
@@ -790,21 +770,21 @@ with st.sidebar:
         st.caption(f"Speaking in: **{lang_name}**")
 
     st.markdown("---")
-    st.markdown("**🎭 Emotion Detection**")
+    st.markdown("**Emotion Detection**")
     st.caption("SpeechBrain wav2vec2 · voice & text analysis")
 
     # Show SpeechBrain model status
     model_loaded = load_speechbrain_model() is not None
     if model_loaded:
-        st.success("🧠 SpeechBrain ready ✓")
+        st.success("SpeechBrain ready ✓")
     else:
-        st.info("🧠 SpeechBrain loading… (first run takes ~1 min)")
+        st.info("SpeechBrain loading… (first run takes ~1 min)")
 
     st.markdown("---")
     st.markdown(f"📅 **{today_str}**")
     st.markdown("---")
 
-    if st.button("🗑️ Clear conversation"):
+    if st.button("Clear conversation"):
         st.session_state.update({"history": [], "pending_tts": None})
         st.rerun()
 
@@ -818,8 +798,6 @@ with st.sidebar:
         "OpenRouter · Groq · gTTS · SpeechBrain</div>",
         unsafe_allow_html=True,
     )
-
-# ── Header ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="vox-header">
     <div class="vox-avatar">🎙️</div>
@@ -829,7 +807,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── API key gate ──────────────────────────────────────────────────────────────
 if not openrouter_key or not groq_key:
     st.markdown("""
     <div style="text-align:center;padding:3rem 1rem;">
@@ -847,14 +824,10 @@ if not openrouter_key or not groq_key:
     </div>
     """, unsafe_allow_html=True)
     st.stop()
-
-# ── Play pending TTS ──────────────────────────────────────────────────────────
 if st.session_state["pending_tts"]:
     tts_text, tts_lang = st.session_state["pending_tts"]
     tts_autoplay(tts_text, tts_lang)
     st.session_state["pending_tts"] = None
-
-# ── Chat history ──────────────────────────────────────────────────────────────
 if st.session_state["history"]:
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
     for msg in st.session_state["history"]:
@@ -874,18 +847,16 @@ else:
 
 st.markdown('<hr class="vox-divider">', unsafe_allow_html=True)
 
-# ── Tiny language indicator ───────────────────────────────────────────────────
 if auto_detect_lang:
     dl_display = st.session_state.get("detected_lang", "en").upper()
-    st.markdown(f'<div class="lang-badge">🌐 {dl_display} · auto</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="lang-badge"> {dl_display} · auto</div>', unsafe_allow_html=True)
 else:
-    st.markdown(f'<div class="lang-badge">🌐 {lang_name}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="lang-badge"> {lang_name}</div>', unsafe_allow_html=True)
 
 active_lang = st.session_state.get("detected_lang", "en") if auto_detect_lang else lang_code
 if active_lang in ("auto", ""):
     active_lang = "en"
 
-# ── Input bar ────────────────────────────────────────────────────────────────
 col_mic, col_text, col_send = st.columns([1.1, 5, 1.4])
 with col_mic:
     audio_value = st.audio_input("Speak", label_visibility="collapsed", key="mic_input")
@@ -894,8 +865,6 @@ with col_text:
 with col_send:
     send_btn = st.button("Send ➤", key="send_btn")
 
-
-# ── Handle voice input ────────────────────────────────────────────────────────
 if audio_value is not None:
     import hashlib
     audio_bytes = audio_value.read()
@@ -904,8 +873,8 @@ if audio_value is not None:
     if audio_hash != st.session_state.get("last_audio_hash", ""):
         st.session_state["last_audio_hash"] = audio_hash
 
-        # 1. Transcribe
-        with st.spinner("🎧 Transcribing..."):
+
+        with st.spinner("Transcribing..."):
             try:
                 transcribe_lang = None if auto_detect_lang else lang_code
                 user_text = transcribe_audio(audio_bytes, groq_key, transcribe_lang or "en")
@@ -913,7 +882,7 @@ if audio_value is not None:
                 st.error(f"Transcription failed: {e}"); st.stop()
 
         if auto_detect_lang and user_text:
-            with st.spinner("🌐 Detecting language..."):
+            with st.spinner("Detecting language..."):
                 dl = detect_language_from_text(user_text, openrouter_key)
                 st.session_state["detected_lang"] = dl
                 active_lang = dl
@@ -921,31 +890,25 @@ if audio_value is not None:
         if not user_text or not is_valid_transcript(user_text):
             st.warning(f'Heard: **"{user_text}"** — too short or unclear. Please try again.')
         else:
-            # 2. SpeechBrain audio emotion (background)
-            with st.spinner("🎭 Analysing emotion..."):
+            with st.spinner("Analysing emotion..."):
                 audio_emo = detect_emotion_from_audio(audio_bytes)
 
-            # 3. Text emotion
             text_emo = detect_emotion_from_text(user_text)
 
             # 4. Merge — always display badge (including Neutral)
             final_emotion = merge_emotions(audio_emo, text_emo)
             render_emotion_badge(final_emotion)
 
-            st.markdown(f'<div class="transcript-box">📝 Heard: <b>"{user_text}"</b></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="transcript-box">Heard: <b>"{user_text}"</b></div>', unsafe_allow_html=True)
             process_user_input(user_text, openrouter_key, weather_key, active_lang, auto_detect_lang, final_emotion)
             st.rerun()
 
-
-# ── Handle text send ──────────────────────────────────────────────────────────
 if send_btn and text_input.strip():
     text_emo = detect_emotion_from_text(text_input.strip())
     render_emotion_badge(text_emo)   # always show, even Neutral
     process_user_input(text_input.strip(), openrouter_key, weather_key, active_lang, auto_detect_lang, text_emo)
     st.rerun()
 
-
-# ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown(
     '<div class="vox-footer">'
     'Klyra · Groq Whisper · OpenRouter GPT-4o-mini · gTTS · SpeechBrain · Streamlit'
