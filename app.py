@@ -5,6 +5,7 @@ import base64
 import tempfile
 import os
 import json
+import re
 from datetime import date, datetime
 from gtts import gTTS
 from groq import Groq
@@ -179,6 +180,7 @@ section[data-testid="stSidebar"] > div:first-child button {{
 .emotion-fear    {{ background: #f5eeff; border-color: #c39bd3; color: #7d3c98; }}
 .emotion-disgust {{ background: #efffef; border-color: #82e082; color: #1e8449; }}
 .emotion-surprise{{ background: #fff4e6; border-color: #f0a040; color: #c06000; }}
+.emotion-excited {{ background: #fff0fc; border-color: #f080d0; color: #9b008b; }}
 
 .vox-divider {{ border: none; border-top: 1.5px solid {divider}; margin: 0.8rem 0; }}
 
@@ -322,6 +324,7 @@ current_year = date.today().year
 
 SYSTEM_PROMPT = (
     f"You are Klyra (pronounced Kly-ra), a friendly, helpful AI voice assistant. "
+    f"You were created by Siri Chandana, Srinidhi, and Sudeepthi. "
     f"TODAY'S DATE IS {today_str}. THE CURRENT YEAR IS {current_year}. "
     "CRITICAL: You are running in April 2026. Any event, release, or date you know from training "
     "that was scheduled for 2025 may have already happened — and events scheduled for 2026 are current. "
@@ -331,7 +334,14 @@ SYSTEM_PROMPT = (
     "You have a full memory of this conversation — always refer back to what the user said before. "
     "Keep responses concise — ideally 1–3 sentences — since they will be read aloud. "
     "Be warm, direct, and always use the current year context. "
-    "Your name is Klyra. Never refer to yourself as VoxAI or any other name."
+    "Your name is Klyra. Never refer to yourself as VoxAI or any other name. "
+    "IMPORTANT — EMOTION-AWARE RESPONSES: "
+    "If the user's emotion is detected as SAD or their words seem sad/upset/down/depressed/lonely/crying, "
+    "start your response with a caring message like 'Aww, why are you sad? Is everything okay? I'm here for you 💙' "
+    "If the user's emotion is EXCITED or HAPPY or their words show excitement (yay/woohoo/amazing/awesome/thrilled), "
+    "start your response with 'Wohoooo!! 🎉' and match their energy enthusiastically. "
+    "If the user is ANGRY, respond calmly and empathetically. "
+    "Always adapt your tone to the user's emotional state."
 )
 
 JUNK_PHRASES = {
@@ -368,7 +378,49 @@ EMOTION_CONFIG = {
     "fear":     {"emoji": "😨", "label": "Fearful",  "css": "emotion-fear"},
     "disgust":  {"emoji": "🤢", "label": "Disgust",  "css": "emotion-disgust"},
     "surprise": {"emoji": "😲", "label": "Surprised","css": "emotion-surprise"},
+    "excited":  {"emoji": "🤩", "label": "Excited",  "css": "emotion-excited"},
 }
+
+# ── Word-based emotion detection ──────────────────────────────────────────────
+SAD_WORDS = {
+    "sad", "unhappy", "depressed", "depression", "lonely", "alone", "crying", "cry",
+    "tears", "hurt", "pain", "heartbroken", "broken", "miss", "lost", "hopeless",
+    "empty", "tired", "exhausted", "worthless", "miserable", "grief", "grieving",
+    "upset", "down", "low", "dark", "anxious", "anxiety", "stressed", "stress",
+    "worried", "worry", "awful", "terrible", "horrible", "hate", "bad day",
+    "feel bad", "feel down", "not okay", "not good", "struggling",
+}
+
+EXCITED_WORDS = {
+    "woohoo", "wohoo", "yay", "yippee", "amazing", "awesome", "fantastic",
+    "incredible", "great", "excellent", "thrilled", "excited", "excitement",
+    "can't wait", "cannot wait", "love it", "so good", "perfect", "wonderful",
+    "brilliant", "superb", "outstanding", "yesss", "yes!", "omg", "oh my god",
+    "unbelievable", "wow", "woah", "whoa", "epic", "fire", "lit", "🎉", "🥳",
+}
+
+ANGRY_WORDS = {
+    "angry", "anger", "furious", "frustrated", "frustrating", "annoying", "annoyed",
+    "mad", "rage", "hate", "disgusted", "sick of", "fed up", "irritated",
+}
+
+def detect_emotion_from_text(text: str) -> dict:
+    """Detect emotion purely from the words in the text."""
+    lower = text.lower()
+    words = set(re.findall(r"\b\w+\b", lower))
+
+    sad_score     = len(words & SAD_WORDS) + sum(phrase in lower for phrase in ["feel bad", "not okay", "bad day", "feel down", "not good", "can't stop crying"])
+    excited_score = len(words & EXCITED_WORDS) + sum(phrase in lower for phrase in ["can't wait", "cannot wait", "love it", "so good", "oh my god"])
+    angry_score   = len(words & ANGRY_WORDS) + sum(phrase in lower for phrase in ["sick of", "fed up"])
+
+    scores = {"sad": sad_score, "excited": excited_score, "angry": angry_score}
+    best   = max(scores, key=scores.get)
+
+    if scores[best] == 0:
+        return {**EMOTION_CONFIG["neutral"], "confidence": 0.0, "source": "text"}
+
+    return {**EMOTION_CONFIG[best], "confidence": min(100.0, scores[best] * 30.0), "source": "text"}
+
 
 # ── Voice command mappings ────────────────────────────────────────────────────
 def check_voice_command(text: str):
@@ -438,7 +490,7 @@ def perform_web_search(query: str) -> str:
     except Exception:
         pass
 
-    # Fallback: try DuckDuckGo instant answer API
+    # Fallback: DuckDuckGo instant answer API
     try:
         r2 = requests.get(
             "https://api.duckduckgo.com/",
@@ -464,10 +516,18 @@ def perform_web_search(query: str) -> str:
     )
 
 
-def get_ai_response(history: list, openrouter_key: str) -> str:
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
+def get_ai_response(history: list, openrouter_key: str, detected_emotion: dict = None) -> str:
+    # Inject emotion context into the system prompt if detected
+    system = SYSTEM_PROMPT
+    if detected_emotion and detected_emotion.get("label") not in ("Neutral", None):
+        system += (
+            f"\n\nCURRENT USER EMOTION DETECTED: {detected_emotion['label']} "
+            f"(confidence {detected_emotion.get('confidence', 0):.0f}%). "
+            "Adjust your response tone accordingly as instructed above."
+        )
 
-    # Detect if the latest user message needs real-time data
+    messages = [{"role": "system", "content": system}] + history
+
     last_user = next((m["content"] for m in reversed(history) if m["role"] == "user"), "")
     real_time_keywords = [
         "weather", "temperature", "forecast", "movie", "release", "releasing", "when is",
@@ -628,93 +688,12 @@ def transcribe_audio(audio_bytes: bytes, groq_key: str, lang_code: str) -> str:
         os.unlink(tmp_path)
 
 
-def summarize_pdf(pdf_bytes: bytes, openrouter_key: str) -> str:
-    try:
-        from pypdf import PdfReader
-        reader = PdfReader(io.BytesIO(pdf_bytes))
-        parts  = []
-        for i, page in enumerate(reader.pages):
-            if i >= 15:
-                parts.append(f"[Truncated at page 15 of {len(reader.pages)}]")
-                break
-            t = page.extract_text()
-            if t:
-                parts.append(t)
-        full_text = "\n".join(parts)[:8000]
-    except Exception as e:
-        return f"Could not read PDF: {e}"
-
-    if not full_text.strip():
-        return "The PDF appears to be image-based or has no extractable text."
-
-    try:
-        r = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {openrouter_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://klyra.streamlit.app",
-                "X-Title": "Klyra",
-            },
-            json={
-                "model": "openai/gpt-4o-mini",
-                "messages": [{
-                    "role": "user",
-                    "content": "Summarize the following document in 3–5 clear sentences suitable for voice reading:\n\n" + full_text
-                }],
-                "max_tokens": 300,
-            },
-            timeout=30,
-        )
-        return r.json()["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        return f"Summarization failed: {e}"
-
-
-def detect_emotion(audio_bytes: bytes) -> dict:
-    try:
-        from speechbrain.inference.interfaces import foreign_class
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            f.write(audio_bytes)
-            tmp_path = f.name
-        try:
-            classifier = foreign_class(
-                source="speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
-                pymodule_file="custom_interface.py",
-                classname="CustomEncoderWav2vec2Classifier",
-                savedir="pretrained_models/emotion-recognition",
-            )
-            out_prob, score, index, text_lab = classifier.classify_file(tmp_path)
-            emotion_raw = text_lab[0].lower()
-        finally:
-            os.unlink(tmp_path)
-        label_map = {
-            "ang": "angry",  "angry": "angry",
-            "hap": "happy",  "happy": "happy",  "exc": "happy",
-            "sad": "sad",
-            "neu": "neutral","neutral": "neutral",
-            "fea": "fear",   "fear": "fear",
-            "dis": "disgust","disgust": "disgust",
-            "sur": "surprise","surprise": "surprise",
-        }
-        emotion_key = label_map.get(emotion_raw, "neutral")
-        confidence  = round(float(score[0]) * 100, 1)
-        cfg = EMOTION_CONFIG.get(emotion_key, EMOTION_CONFIG["neutral"])
-        return {**cfg, "confidence": confidence}
-    except ImportError:
-        return {**EMOTION_CONFIG["neutral"], "confidence": 0.0, "_missing": True}
-    except Exception:
-        return {**EMOTION_CONFIG["neutral"], "confidence": 0.0}
-
-
 def render_emotion_badge(emotion: dict):
-    if emotion.get("_missing"):
-        st.info("💡 Emotion detection needs SpeechBrain. Run `pip install speechbrain` then restart.", icon="ℹ️")
-        return
-    conf_str = f" · {emotion['confidence']}%" if emotion["confidence"] > 0 else ""
+    conf_str = f" · {emotion['confidence']:.0f}%" if emotion.get("confidence", 0) > 0 else ""
+    src_str  = " · word analysis" if emotion.get("source") == "text" else ""
     st.markdown(
         f'<div class="emotion-badge {emotion["css"]}">'
-        f'{emotion["emoji"]} Tone: <strong>{emotion["label"]}</strong>{conf_str}'
+        f'{emotion["emoji"]} Tone: <strong>{emotion["label"]}</strong>{conf_str}{src_str}'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -740,7 +719,7 @@ def tts_autoplay(text: str, lang_code: str):
 
 
 def process_user_input(user_text: str, openrouter_key: str, weather_key: str,
-                       active_lang: str, auto_detect: bool):
+                       active_lang: str, auto_detect: bool, detected_emotion: dict = None):
     handled, cmd_response, url = check_voice_command(user_text)
     if handled:
         st.markdown('<div class="cmd-badge">⚡ Voice command detected</div>', unsafe_allow_html=True)
@@ -763,8 +742,6 @@ def process_user_input(user_text: str, openrouter_key: str, weather_key: str,
     history_msg = {"role": "user", "content": user_text}
     weather_kws = ["weather", "temperature", "forecast", "rain", "sunny", "cloudy", "humid"]
     if any(kw in user_text.lower() for kw in weather_kws) and weather_key:
-        # Try to extract location from query; fall back to Hyderabad
-        import re
         loc_match = re.search(
             r"(?:in|at|for)\s+([A-Za-z\s]+?)(?:\?|$|weather|temperature|forecast)",
             user_text, re.IGNORECASE
@@ -780,7 +757,7 @@ def process_user_input(user_text: str, openrouter_key: str, weather_key: str,
 
     with st.spinner("Klyra is thinking..."):
         try:
-            ai_text = get_ai_response(history_for_api, openrouter_key)
+            ai_text = get_ai_response(history_for_api, openrouter_key, detected_emotion)
             st.session_state["history"].append({"role": "assistant", "content": ai_text})
             st.session_state["pending_tts"] = (ai_text, active_lang)
         except Exception as e:
@@ -804,7 +781,7 @@ except Exception:
 # ── Session state init ────────────────────────────────────────────────────────
 for k, v in {
     "history": [], "pending_tts": None, "dark_mode": False,
-    "detected_lang": "en", "pdf_summary": None, "last_audio_hash": "",
+    "detected_lang": "en", "last_audio_hash": "",
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -842,54 +819,25 @@ with st.sidebar:
         st.caption(f"Speaking in: **{lang_name}**")
 
     st.markdown("---")
-
     st.markdown("**🎭 Emotion Detection**")
-    emotion_enabled = st.toggle("Detect voice emotion", value=True,
-                                 help="Analyzes voice tone. Powered by SpeechBrain.")
-    if emotion_enabled:
-        st.caption("Powered by SpeechBrain · Wav2Vec2")
-
-    st.markdown("---")
-
-    # ── PDF Upload: compact, in sidebar ──────────────────────────────────────
-    st.markdown("**📄 PDF Voice Summary**")
-    uploaded_pdf = st.file_uploader(
-        "PDF", type=["pdf"],
-        label_visibility="collapsed",
-        key="pdf_uploader",
-    )
-    if uploaded_pdf is not None:
-        name_short = uploaded_pdf.name[:24] + ("…" if len(uploaded_pdf.name) > 24 else "")
-        st.caption(f"📎 {name_short}")
-        col_s, col_c = st.columns([1, 1])
-        with col_s:
-            if st.button("📤 Send", key="summarize_pdf", use_container_width=True):
-                with st.spinner("Reading PDF..."):
-                    summary = summarize_pdf(uploaded_pdf.read(), openrouter_key)
-                    st.session_state["pdf_summary"] = summary
-                    al = st.session_state.get("detected_lang", "en") if auto_detect_lang else lang_code
-                    st.session_state["history"].append({"role": "user", "content": f"[Uploaded PDF: {uploaded_pdf.name}]"})
-                    st.session_state["history"].append({"role": "assistant", "content": f"📄 **Summary of {uploaded_pdf.name}:**\n\n{summary}"})
-                    st.session_state["pending_tts"] = (summary, al)
-                st.rerun()
-        with col_c:
-            if st.button("🗑 Clear", key="clear_pdf", use_container_width=True):
-                st.session_state["pdf_summary"] = None
-                st.rerun()
-    if st.session_state.get("pdf_summary"):
-        st.info(f"📄 {st.session_state['pdf_summary'][:120]}…")
+    st.caption("Analyses your words & tone automatically")
 
     st.markdown("---")
     st.markdown(f"📅 **{today_str}**")
     st.markdown("---")
 
     if st.button("🗑️ Clear conversation"):
-        st.session_state.update({"history": [], "pending_tts": None, "pdf_summary": None})
+        st.session_state.update({"history": [], "pending_tts": None})
         st.rerun()
 
     st.markdown(
-        "<div style='font-size:10px;color:#b8a898;margin-top:2rem;text-align:center;letter-spacing:1px;'>"
-        "Groq · OpenRouter · gTTS · SpeechBrain</div>",
+        "<div style='font-size:10px;color:#b8a898;margin-top:1rem;text-align:center;letter-spacing:1px;'>"
+        "Created by Siri Chandana,<br>Srinidhi &amp; Sudeepthi</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div style='font-size:10px;color:#b8a898;margin-top:0.5rem;text-align:center;letter-spacing:1px;'>"
+        "OpenRouter · Groq · gTTS</div>",
         unsafe_allow_html=True,
     )
 
@@ -968,7 +916,6 @@ if active_lang in ("auto", ""):
     active_lang = "en"
 
 # ── Input bar: mic | text box | Send ─────────────────────────────────────────
-# Streamlit's st.audio_input auto-starts on tap, auto-stops on silence — no manual buttons needed
 col_mic, col_text, col_send = st.columns([1.1, 5, 1.4])
 with col_mic:
     audio_value = st.audio_input("Speak", label_visibility="collapsed", key="mic_input")
@@ -979,21 +926,14 @@ with col_send:
     send_btn = st.button("Send ➤", key="send_btn")
 
 
-
 # ── Handle voice input — loop-safe via audio hash ────────────────────────────
 if audio_value is not None:
     import hashlib
     audio_bytes = audio_value.read()
     audio_hash  = hashlib.md5(audio_bytes).hexdigest()
 
-    # Only process if this is a NEW recording (not a rerun of the same clip)
     if audio_hash != st.session_state.get("last_audio_hash", ""):
         st.session_state["last_audio_hash"] = audio_hash
-
-        detected_emotion = None
-        if emotion_enabled:
-            with st.spinner("🎭 Analysing tone..."):
-                detected_emotion = detect_emotion(audio_bytes)
 
         with st.spinner("🎧 Transcribing..."):
             try:
@@ -1012,24 +952,33 @@ if audio_value is not None:
         if not user_text or not is_valid_transcript(user_text):
             st.warning(f'Heard: **"{user_text}"** — too short or unclear. Please try again.')
         else:
-            if detected_emotion:
+            # Detect emotion from words
+            detected_emotion = detect_emotion_from_text(user_text)
+            if detected_emotion["label"] != "Neutral":
                 render_emotion_badge(detected_emotion)
+
             st.markdown(
                 f'<div class="transcript-box">📝 Heard: <b>"{user_text}"</b></div>',
                 unsafe_allow_html=True,
             )
-            process_user_input(user_text, openrouter_key, weather_key, active_lang, auto_detect_lang)
+            process_user_input(user_text, openrouter_key, weather_key, active_lang,
+                               auto_detect_lang, detected_emotion)
             st.rerun()
 
 # ── Handle text send ──────────────────────────────────────────────────────────
 if send_btn and text_input.strip():
-    process_user_input(text_input.strip(), openrouter_key, weather_key, active_lang, auto_detect_lang)
+    # Detect emotion from words for text input too
+    detected_emotion = detect_emotion_from_text(text_input.strip())
+    if detected_emotion["label"] != "Neutral":
+        render_emotion_badge(detected_emotion)
+    process_user_input(text_input.strip(), openrouter_key, weather_key, active_lang,
+                       auto_detect_lang, detected_emotion)
     st.rerun()
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown(
     '<div class="vox-footer">'
-    'Klyra · Groq Whisper · OpenRouter GPT-4o-mini · gTTS · SpeechBrain · Streamlit'
+    'Klyra · Groq Whisper · OpenRouter GPT-4o-mini · gTTS · Streamlit'
     '</div>',
     unsafe_allow_html=True,
 )
