@@ -2,3 +2,6 @@ streamlit
 gtts
 requests
 groq
+speechbrain>=1.0.0
+torchaudio
+torch
