@@ -64,7 +64,6 @@ html, body, [class*="css"] {{
     min-height: 100vh;
 }}
 
-/* ── Sidebar: always visible, collapse button hidden ── */
 [data-testid="stSidebar"] {{
     background: {sidebar_bg} !important;
     border-right: 1px solid {divider} !important;
@@ -73,7 +72,6 @@ html, body, [class*="css"] {{
 }}
 [data-testid="stSidebar"] * {{ color: {text_sub} !important; }}
 
-/* Hide ALL sidebar toggle / collapse buttons */
 [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapseButton"],
 button[aria-label="Close sidebar"],
@@ -88,7 +86,6 @@ section[data-testid="stSidebar"] > div:first-child button {{
     overflow: hidden !important;
 }}
 
-/* ── Header ── */
 .vox-header {{ text-align: center; padding: 2rem 0 0.8rem; }}
 .vox-avatar {{
     width: 68px; height: 68px;
@@ -115,7 +112,6 @@ section[data-testid="stSidebar"] > div:first-child button {{
     margin: 1rem auto 0; border-radius: 2px;
 }}
 
-/* ── Chat bubbles ── */
 .chat-wrap {{
     max-height: 50vh; overflow-y: auto;
     padding: 0.5rem 0.2rem; margin-bottom: 0.5rem;
@@ -166,7 +162,6 @@ section[data-testid="stSidebar"] > div:first-child button {{
     margin: 8px 0 12px; font-style: italic;
 }}
 
-/* ── Emotion badges ── */
 .emotion-badge {{
     display: inline-flex; align-items: center; gap: 8px;
     border-radius: 20px; padding: 6px 16px;
@@ -184,7 +179,6 @@ section[data-testid="stSidebar"] > div:first-child button {{
 
 .vox-divider {{ border: none; border-top: 1.5px solid {divider}; margin: 0.8rem 0; }}
 
-/* ── Text input ── */
 .stTextInput > div > div > input {{
     background: {input_bg} !important; border: 1.5px solid {input_border} !important;
     border-radius: 14px !important; color: {input_text} !important;
@@ -197,7 +191,6 @@ section[data-testid="stSidebar"] > div:first-child button {{
     box-shadow: 0 0 0 3px rgba(224,123,79,0.12) !important;
 }}
 
-/* ── Audio input: roomy, no crowding ── */
 div[data-testid="stAudioInput"] {{
     background: transparent !important;
     border: none !important;
@@ -206,7 +199,6 @@ div[data-testid="stAudioInput"] {{
 }}
 div[data-testid="stAudioInput"] > label {{ display: none !important; }}
 
-/* Record button */
 div[data-testid="stAudioInput"] > div > button:first-child {{
     background: {input_bg} !important;
     border: 2.5px solid #e07b4f !important;
@@ -228,7 +220,6 @@ div[data-testid="stAudioInput"] > div > button:first-child:hover {{
     transform: scale(1.06) !important;
 }}
 
-/* Replay / discard row: give vertical space */
 div[data-testid="stAudioInput"] > div {{
     display: flex !important;
     flex-direction: column !important;
@@ -241,7 +232,6 @@ div[data-testid="stAudioInput"] audio {{
     border-radius: 8px !important;
 }}
 
-/* ── Main buttons ── */
 .stButton > button {{
     background: linear-gradient(135deg, #d4622a, #e07b4f) !important;
     color: #ffffff !important; border: 2.5px solid #b84f20 !important;
@@ -270,7 +260,6 @@ div[data-testid="stAudioInput"] audio {{
     font-weight: 800 !important;
 }}
 
-/* ── Badges ── */
 .speaking-badge {{
     display: inline-flex; align-items: center; gap: 6px;
     background: #fff0e8; border: 1.5px solid #f0d0b8;
@@ -294,7 +283,6 @@ div[data-testid="stAudioInput"] audio {{
     letter-spacing: 0.5px; margin: 6px 0;
 }}
 
-/* ── Language badge: tiny, unobtrusive ── */
 .lang-badge {{
     display: inline-flex; align-items: center; gap: 4px;
     background: rgba(74,144,226,0.08);
@@ -381,6 +369,66 @@ EMOTION_CONFIG = {
     "excited":  {"emoji": "🤩", "label": "Excited",  "css": "emotion-excited"},
 }
 
+# SpeechBrain label → our emotion key mapping
+SB_LABEL_MAP = {
+    "neu": "neutral", "hap": "happy", "sad": "sad",
+    "ang": "angry",   "fea": "fear",  "dis": "disgust",
+    "sur": "surprise","exc": "excited",
+    # IEMOCAP / other common labels
+    "neutral":  "neutral", "happy":   "happy",   "sad":     "sad",
+    "angry":    "angry",   "fearful": "fear",    "disgust": "disgust",
+    "surprise": "surprise","excited": "excited",
+    # wav2vec RAVDESS-style
+    "calm": "neutral", "boredom": "neutral",
+}
+
+# ── SpeechBrain emotion model (loaded once) ───────────────────────────────────
+@st.cache_resource(show_spinner=False)
+def load_speechbrain_model():
+    """Load speechbrain/emotion-recognition-wav2vec2-IEMOCAP from HuggingFace."""
+    try:
+        from speechbrain.pretrained import EncoderClassifier
+        model = EncoderClassifier.from_hparams(
+            source="speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
+            savedir="pretrained_models/emotion-wav2vec2",
+            run_opts={"device": "cpu"},
+        )
+        return model
+    except Exception:
+        return None
+
+
+def detect_emotion_from_audio(audio_bytes: bytes) -> dict | None:
+    """Run SpeechBrain on raw WAV bytes; returns emotion dict or None."""
+    model = load_speechbrain_model()
+    if model is None:
+        return None
+    try:
+        import torchaudio, torch
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+            f.write(audio_bytes)
+            tmp = f.name
+        try:
+            waveform, sr = torchaudio.load(tmp)
+            # Resample to 16 kHz if needed
+            if sr != 16000:
+                waveform = torchaudio.functional.resample(waveform, sr, 16000)
+            # Mono
+            if waveform.shape[0] > 1:
+                waveform = waveform.mean(dim=0, keepdim=True)
+            out_prob, score, index, text_lab = model.classify_batch(waveform)
+            raw_label = text_lab[0].strip().lower()
+            conf = float(score[0].exp()) * 100
+        finally:
+            os.unlink(tmp)
+
+        emo_key = SB_LABEL_MAP.get(raw_label, "neutral")
+        cfg = EMOTION_CONFIG[emo_key]
+        return {**cfg, "confidence": conf, "source": "audio"}
+    except Exception:
+        return None
+
+
 # ── Word-based emotion detection ──────────────────────────────────────────────
 SAD_WORDS = {
     "sad", "unhappy", "depressed", "depression", "lonely", "alone", "crying", "cry",
@@ -390,7 +438,6 @@ SAD_WORDS = {
     "worried", "worry", "awful", "terrible", "horrible", "hate", "bad day",
     "feel bad", "feel down", "not okay", "not good", "struggling",
 }
-
 EXCITED_WORDS = {
     "woohoo", "wohoo", "yay", "yippee", "amazing", "awesome", "fantastic",
     "incredible", "great", "excellent", "thrilled", "excited", "excitement",
@@ -398,28 +445,40 @@ EXCITED_WORDS = {
     "brilliant", "superb", "outstanding", "yesss", "yes!", "omg", "oh my god",
     "unbelievable", "wow", "woah", "whoa", "epic", "fire", "lit", "🎉", "🥳",
 }
-
 ANGRY_WORDS = {
     "angry", "anger", "furious", "frustrated", "frustrating", "annoying", "annoyed",
     "mad", "rage", "hate", "disgusted", "sick of", "fed up", "irritated",
 }
 
 def detect_emotion_from_text(text: str) -> dict:
-    """Detect emotion purely from the words in the text."""
     lower = text.lower()
     words = set(re.findall(r"\b\w+\b", lower))
-
-    sad_score     = len(words & SAD_WORDS) + sum(phrase in lower for phrase in ["feel bad", "not okay", "bad day", "feel down", "not good", "can't stop crying"])
-    excited_score = len(words & EXCITED_WORDS) + sum(phrase in lower for phrase in ["can't wait", "cannot wait", "love it", "so good", "oh my god"])
-    angry_score   = len(words & ANGRY_WORDS) + sum(phrase in lower for phrase in ["sick of", "fed up"])
-
+    sad_score     = len(words & SAD_WORDS) + sum(p in lower for p in ["feel bad", "not okay", "bad day", "feel down", "not good", "can't stop crying"])
+    excited_score = len(words & EXCITED_WORDS) + sum(p in lower for p in ["can't wait", "cannot wait", "love it", "so good", "oh my god"])
+    angry_score   = len(words & ANGRY_WORDS) + sum(p in lower for p in ["sick of", "fed up"])
     scores = {"sad": sad_score, "excited": excited_score, "angry": angry_score}
     best   = max(scores, key=scores.get)
-
     if scores[best] == 0:
         return {**EMOTION_CONFIG["neutral"], "confidence": 0.0, "source": "text"}
-
     return {**EMOTION_CONFIG[best], "confidence": min(100.0, scores[best] * 30.0), "source": "text"}
+
+
+def merge_emotions(audio_emo: dict | None, text_emo: dict) -> dict:
+    """
+    Merge SpeechBrain audio emotion with text emotion.
+    Audio takes priority if confidence > 45%; otherwise text wins (unless neutral).
+    Always returns a valid emotion dict.
+    """
+    if audio_emo is None:
+        return text_emo
+    # If audio detected non-neutral with decent confidence, trust it
+    if audio_emo["label"] != "Neutral" and audio_emo.get("confidence", 0) >= 45:
+        return audio_emo
+    # If text detected strong emotion, use text
+    if text_emo["label"] != "Neutral":
+        return text_emo
+    # Both neutral — return audio neutral (has confidence score)
+    return audio_emo
 
 
 # ── Voice command mappings ────────────────────────────────────────────────────
@@ -435,99 +494,61 @@ def check_voice_command(text: str):
         return True, "Opening Google for you!", "https://www.google.com"
     return False, None, None
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+
 def is_valid_transcript(text: str) -> bool:
     clean = text.strip().lower().rstrip(".,!?")
     return clean not in JUNK_PHRASES and len(clean) >= MIN_CHARS and len(clean.split()) >= MIN_WORDS
 
 
 def perform_web_search(query: str) -> str:
-    """Fetch real-time search results via DuckDuckGo HTML scrape."""
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        r = requests.get(
-            "https://html.duckduckgo.com/html/",
-            params={"q": query, "kl": "us-en"},
-            headers=headers,
-            timeout=10,
-        )
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+        r = requests.get("https://html.duckduckgo.com/html/", params={"q": query, "kl": "us-en"}, headers=headers, timeout=10)
         if r.status_code == 200:
             from html.parser import HTMLParser
-
             class DDGParser(HTMLParser):
                 def __init__(self):
-                    super().__init__()
-                    self.results = []
-                    self._in_result = False
-                    self._current = ""
-
+                    super().__init__(); self.results = []; self._in_result = False; self._current = ""
                 def handle_starttag(self, tag, attrs):
-                    attrs_dict = dict(attrs)
-                    cls = attrs_dict.get("class", "")
+                    cls = dict(attrs).get("class", "")
                     if "result__snippet" in cls or "result__body" in cls:
-                        self._in_result = True
-                        self._current = ""
-
+                        self._in_result = True; self._current = ""
                 def handle_endtag(self, tag):
                     if self._in_result and tag in ("a", "span", "div"):
-                        text = self._current.strip()
-                        if text and len(text) > 20:
-                            self.results.append(text)
+                        t = self._current.strip()
+                        if t and len(t) > 20: self.results.append(t)
                         self._in_result = False
-
                 def handle_data(self, data):
-                    if self._in_result:
-                        self._current += data
-
-            parser = DDGParser()
-            parser.feed(r.text)
+                    if self._in_result: self._current += data
+            parser = DDGParser(); parser.feed(r.text)
             snippets = parser.results[:4]
             if snippets:
                 return f"[Web search results for '{query}' as of {today_str}]:\n" + "\n".join(snippets)
     except Exception:
         pass
-
-    # Fallback: DuckDuckGo instant answer API
     try:
-        r2 = requests.get(
-            "https://api.duckduckgo.com/",
-            params={"q": query, "format": "json", "no_html": "1", "skip_disambig": "1"},
-            timeout=8,
-        )
+        r2 = requests.get("https://api.duckduckgo.com/", params={"q": query, "format": "json", "no_html": "1", "skip_disambig": "1"}, timeout=8)
         data = r2.json()
         parts = []
-        if data.get("AbstractText"):
-            parts.append(data["AbstractText"])
+        if data.get("AbstractText"): parts.append(data["AbstractText"])
         for topic in data.get("RelatedTopics", [])[:3]:
-            if isinstance(topic, dict) and topic.get("Text"):
-                parts.append(topic["Text"])
+            if isinstance(topic, dict) and topic.get("Text"): parts.append(topic["Text"])
         if parts:
             return f"[Search results for '{query}']:\n" + "\n".join(parts[:3])
     except Exception:
         pass
-
-    return (
-        f"[No live search results found for '{query}'. "
-        f"Today is {today_str} ({current_year}). "
-        "Use your most current training knowledge and be explicit about the current year.]"
-    )
+    return f"[No live search results found for '{query}'. Today is {today_str} ({current_year}). Use your most current training knowledge.]"
 
 
 def get_ai_response(history: list, openrouter_key: str, detected_emotion: dict = None) -> str:
-    # Inject emotion context into the system prompt if detected
     system = SYSTEM_PROMPT
     if detected_emotion and detected_emotion.get("label") not in ("Neutral", None):
         system += (
             f"\n\nCURRENT USER EMOTION DETECTED: {detected_emotion['label']} "
-            f"(confidence {detected_emotion.get('confidence', 0):.0f}%). "
+            f"(confidence {detected_emotion.get('confidence', 0):.0f}%, source: {detected_emotion.get('source','text')}). "
             "Adjust your response tone accordingly as instructed above."
         )
-
     messages = [{"role": "system", "content": system}] + history
-
     last_user = next((m["content"] for m in reversed(history) if m["role"] == "user"), "")
     real_time_keywords = [
         "weather", "temperature", "forecast", "movie", "release", "releasing", "when is",
@@ -548,38 +569,23 @@ def get_ai_response(history: list, openrouter_key: str, detected_emotion: dict =
                 "type": "function",
                 "function": {
                     "name": "web_search",
-                    "description": (
-                        "Search the web for real-time information. Use for: "
-                        "movie release dates, weather, news, sports, TV shows, product launches, "
-                        "upcoming events, prices, or any time-sensitive question. "
-                        "Always search when asked about anything that could have changed recently."
-                    ),
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"query": {"type": "string", "description": "Specific search query"}},
-                        "required": ["query"]
-                    }
+                    "description": "Search the web for real-time information. Use for: movie release dates, weather, news, sports, TV shows, product launches, upcoming events, prices, or any time-sensitive question.",
+                    "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}
                 }
             }],
             "tool_choice": tool_choice,
         }
         r = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {openrouter_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://klyra.streamlit.app",
-                "X-Title": "Klyra",
-            },
+            headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json",
+                     "HTTP-Referer": "https://klyra.streamlit.app", "X-Title": "Klyra"},
             json=payload, timeout=30,
         )
         r.raise_for_status()
         data   = r.json()
         choice = data["choices"][0]
-
         if choice.get("finish_reason") != "tool_calls":
             return choice["message"]["content"].strip()
-
         tool_calls = choice["message"].get("tool_calls", [])
         if tool_calls:
             tc    = tool_calls[0]
@@ -591,12 +597,8 @@ def get_ai_response(history: list, openrouter_key: str, detected_emotion: dict =
             ]
             r2 = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {openrouter_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://klyra.streamlit.app",
-                    "X-Title": "Klyra",
-                },
+                headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json",
+                         "HTTP-Referer": "https://klyra.streamlit.app", "X-Title": "Klyra"},
                 json={"model": "openai/gpt-4o-mini", "messages": messages2, "max_tokens": 400},
                 timeout=30,
             )
@@ -607,12 +609,8 @@ def get_ai_response(history: list, openrouter_key: str, detected_emotion: dict =
 
     r = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {openrouter_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://klyra.streamlit.app",
-            "X-Title": "Klyra",
-        },
+        headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json",
+                 "HTTP-Referer": "https://klyra.streamlit.app", "X-Title": "Klyra"},
         json={"model": "openai/gpt-4o-mini", "messages": messages, "max_tokens": 400},
         timeout=30,
     )
@@ -624,18 +622,13 @@ def get_live_weather(location: str, weather_key: str) -> str:
     if not weather_key:
         return ""
     try:
-        r = requests.get(
-            "https://api.openweathermap.org/data/2.5/weather",
-            params={"q": location, "appid": weather_key, "units": "metric"},
-            timeout=8,
-        )
+        r = requests.get("https://api.openweathermap.org/data/2.5/weather",
+                         params={"q": location, "appid": weather_key, "units": "metric"}, timeout=8)
         if r.status_code == 200:
-            d     = r.json()
-            desc  = d["weather"][0]["description"].capitalize()
-            temp  = round(d["main"]["temp"])
-            feels = round(d["main"]["feels_like"])
-            humid = d["main"]["humidity"]
-            return f"Current weather in {d['name']}: {desc}, {temp}°C (feels like {feels}°C), humidity {humid}%."
+            d = r.json()
+            return (f"Current weather in {d['name']}: {d['weather'][0]['description'].capitalize()}, "
+                    f"{round(d['main']['temp'])}°C (feels like {round(d['main']['feels_like'])}°C), "
+                    f"humidity {d['main']['humidity']}%.")
     except Exception:
         pass
     return ""
@@ -645,20 +638,11 @@ def detect_language_from_text(text: str, openrouter_key: str) -> str:
     try:
         r = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {openrouter_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://klyra.streamlit.app",
-                "X-Title": "Klyra",
-            },
-            json={
-                "model": "openai/gpt-4o-mini",
-                "messages": [{
-                    "role": "user",
-                    "content": f'Detect the language of this text. Respond with ONLY the ISO 639-1 2-letter code (e.g., en, hi, te, fr). Text: "{text}"'
-                }],
-                "max_tokens": 5,
-            },
+            headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json",
+                     "HTTP-Referer": "https://klyra.streamlit.app", "X-Title": "Klyra"},
+            json={"model": "openai/gpt-4o-mini",
+                  "messages": [{"role": "user", "content": f'Detect the language of this text. Respond with ONLY the ISO 639-1 2-letter code (e.g., en, hi, te, fr). Text: "{text}"'}],
+                  "max_tokens": 5},
             timeout=10,
         )
         code  = r.json()["choices"][0]["message"]["content"].strip().lower()[:2]
@@ -671,17 +655,12 @@ def detect_language_from_text(text: str, openrouter_key: str) -> str:
 def transcribe_audio(audio_bytes: bytes, groq_key: str, lang_code: str) -> str:
     client = Groq(api_key=groq_key)
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        f.write(audio_bytes)
-        tmp_path = f.name
+        f.write(audio_bytes); tmp_path = f.name
     try:
         with open(tmp_path, "rb") as f:
-            kwargs = dict(
-                file=("recording.wav", f, "audio/wav"),
-                model="whisper-large-v3-turbo",
-                prompt="User is asking a question or giving a command.",
-            )
-            if lang_code and lang_code not in ("auto", ""):
-                kwargs["language"] = lang_code
+            kwargs = dict(file=("recording.wav", f, "audio/wav"), model="whisper-large-v3-turbo",
+                          prompt="User is asking a question or giving a command.")
+            if lang_code and lang_code not in ("auto", ""): kwargs["language"] = lang_code
             result = client.audio.transcriptions.create(**kwargs)
         return result.text.strip()
     finally:
@@ -690,10 +669,11 @@ def transcribe_audio(audio_bytes: bytes, groq_key: str, lang_code: str) -> str:
 
 def render_emotion_badge(emotion: dict):
     conf_str = f" · {emotion['confidence']:.0f}%" if emotion.get("confidence", 0) > 0 else ""
-    src_str  = " · word analysis" if emotion.get("source") == "text" else ""
+    src_icon = "🎤" if emotion.get("source") == "audio" else "💬"
+    src_str  = f" · {src_icon} {'voice' if emotion.get('source') == 'audio' else 'text'} analysis"
     st.markdown(
         f'<div class="emotion-badge {emotion["css"]}">'
-        f'{emotion["emoji"]} Tone: <strong>{emotion["label"]}</strong>{conf_str}{src_str}'
+        f'{emotion["emoji"]} Emotion: <strong>{emotion["label"]}</strong>{conf_str}{src_str}'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -705,8 +685,7 @@ def tts_autoplay(text: str, lang_code: str):
         tts = gTTS(text=text, lang=tts_lang, slow=False)
     except Exception:
         tts = gTTS(text=text, lang="en", slow=False)
-    buf = io.BytesIO()
-    tts.write_to_fp(buf)
+    buf = io.BytesIO(); tts.write_to_fp(buf)
     b64 = base64.b64encode(buf.getvalue()).decode()
     st.markdown(f"""
     <audio autoplay style="display:none;">
@@ -724,11 +703,7 @@ def process_user_input(user_text: str, openrouter_key: str, weather_key: str,
     if handled:
         st.markdown('<div class="cmd-badge">⚡ Voice command detected</div>', unsafe_allow_html=True)
         if url:
-            st.markdown(
-                f'<a href="{url}" target="_blank" style="color:#1a73e8;font-weight:700;">'
-                f'🔗 Click here to open →</a>',
-                unsafe_allow_html=True,
-            )
+            st.markdown(f'<a href="{url}" target="_blank" style="color:#1a73e8;font-weight:700;">🔗 Click here to open →</a>', unsafe_allow_html=True)
         st.session_state["history"].append({"role": "user", "content": user_text})
         st.session_state["history"].append({"role": "assistant", "content": cmd_response})
         st.session_state["pending_tts"] = (cmd_response, active_lang)
@@ -742,12 +717,9 @@ def process_user_input(user_text: str, openrouter_key: str, weather_key: str,
     history_msg = {"role": "user", "content": user_text}
     weather_kws = ["weather", "temperature", "forecast", "rain", "sunny", "cloudy", "humid"]
     if any(kw in user_text.lower() for kw in weather_kws) and weather_key:
-        loc_match = re.search(
-            r"(?:in|at|for)\s+([A-Za-z\s]+?)(?:\?|$|weather|temperature|forecast)",
-            user_text, re.IGNORECASE
-        )
-        location = loc_match.group(1).strip() if loc_match else "Hyderabad"
-        live_wx = get_live_weather(location, weather_key)
+        loc_match = re.search(r"(?:in|at|for)\s+([A-Za-z\s]+?)(?:\?|$|weather|temperature|forecast)", user_text, re.IGNORECASE)
+        location  = loc_match.group(1).strip() if loc_match else "Hyderabad"
+        live_wx   = get_live_weather(location, weather_key)
         if live_wx:
             history_msg = {"role": "user", "content": user_text + f"\n[Live weather data: {live_wx}]"}
 
@@ -795,8 +767,7 @@ with st.sidebar:
     st.markdown("---")
 
     st.markdown("**🌙 Appearance**")
-    dark_toggle = st.toggle("Dark Mode", value=st.session_state["dark_mode"],
-                             help="Switch between light and dark theme")
+    dark_toggle = st.toggle("Dark Mode", value=st.session_state["dark_mode"], help="Switch between light and dark theme")
     if dark_toggle != st.session_state["dark_mode"]:
         st.session_state["dark_mode"] = dark_toggle
         st.rerun()
@@ -820,7 +791,14 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("**🎭 Emotion Detection**")
-    st.caption("Analyses your words & tone automatically")
+    st.caption("SpeechBrain wav2vec2 · voice & text analysis")
+
+    # Show SpeechBrain model status
+    model_loaded = load_speechbrain_model() is not None
+    if model_loaded:
+        st.success("🧠 SpeechBrain ready ✓")
+    else:
+        st.info("🧠 SpeechBrain loading… (first run takes ~1 min)")
 
     st.markdown("---")
     st.markdown(f"📅 **{today_str}**")
@@ -837,7 +815,7 @@ with st.sidebar:
     )
     st.markdown(
         "<div style='font-size:10px;color:#b8a898;margin-top:0.5rem;text-align:center;letter-spacing:1px;'>"
-        "OpenRouter · Groq · gTTS</div>",
+        "OpenRouter · Groq · gTTS · SpeechBrain</div>",
         unsafe_allow_html=True,
     )
 
@@ -881,16 +859,9 @@ if st.session_state["history"]:
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
     for msg in st.session_state["history"]:
         if msg["role"] == "user":
-            st.markdown(
-                f'<div class="bubble-user"><span>{msg["content"]}</span></div>',
-                unsafe_allow_html=True,
-            )
+            st.markdown(f'<div class="bubble-user"><span>{msg["content"]}</span></div>', unsafe_allow_html=True)
         else:
-            st.markdown(
-                f'<div class="bubble-ai"><div class="ai-icon">🤖</div>'
-                f'<span>{msg["content"]}</span></div>',
-                unsafe_allow_html=True,
-            )
+            st.markdown(f'<div class="bubble-ai"><div class="ai-icon">🤖</div><span>{msg["content"]}</span></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.markdown("""
@@ -910,23 +881,21 @@ if auto_detect_lang:
 else:
     st.markdown(f'<div class="lang-badge">🌐 {lang_name}</div>', unsafe_allow_html=True)
 
-# ── Resolve active language ───────────────────────────────────────────────────
 active_lang = st.session_state.get("detected_lang", "en") if auto_detect_lang else lang_code
 if active_lang in ("auto", ""):
     active_lang = "en"
 
-# ── Input bar: mic | text box | Send ─────────────────────────────────────────
+# ── Input bar ────────────────────────────────────────────────────────────────
 col_mic, col_text, col_send = st.columns([1.1, 5, 1.4])
 with col_mic:
     audio_value = st.audio_input("Speak", label_visibility="collapsed", key="mic_input")
 with col_text:
-    text_input  = st.text_input("msg", placeholder="Type a message…",
-                                label_visibility="collapsed", key="text_msg")
+    text_input  = st.text_input("msg", placeholder="Type a message…", label_visibility="collapsed", key="text_msg")
 with col_send:
     send_btn = st.button("Send ➤", key="send_btn")
 
 
-# ── Handle voice input — loop-safe via audio hash ────────────────────────────
+# ── Handle voice input ────────────────────────────────────────────────────────
 if audio_value is not None:
     import hashlib
     audio_bytes = audio_value.read()
@@ -935,13 +904,13 @@ if audio_value is not None:
     if audio_hash != st.session_state.get("last_audio_hash", ""):
         st.session_state["last_audio_hash"] = audio_hash
 
+        # 1. Transcribe
         with st.spinner("🎧 Transcribing..."):
             try:
                 transcribe_lang = None if auto_detect_lang else lang_code
                 user_text = transcribe_audio(audio_bytes, groq_key, transcribe_lang or "en")
             except Exception as e:
-                st.error(f"Transcription failed: {e}")
-                st.stop()
+                st.error(f"Transcription failed: {e}"); st.stop()
 
         if auto_detect_lang and user_text:
             with st.spinner("🌐 Detecting language..."):
@@ -952,33 +921,34 @@ if audio_value is not None:
         if not user_text or not is_valid_transcript(user_text):
             st.warning(f'Heard: **"{user_text}"** — too short or unclear. Please try again.')
         else:
-            # Detect emotion from words
-            detected_emotion = detect_emotion_from_text(user_text)
-            if detected_emotion["label"] != "Neutral":
-                render_emotion_badge(detected_emotion)
+            # 2. SpeechBrain audio emotion (background)
+            with st.spinner("🎭 Analysing emotion..."):
+                audio_emo = detect_emotion_from_audio(audio_bytes)
 
-            st.markdown(
-                f'<div class="transcript-box">📝 Heard: <b>"{user_text}"</b></div>',
-                unsafe_allow_html=True,
-            )
-            process_user_input(user_text, openrouter_key, weather_key, active_lang,
-                               auto_detect_lang, detected_emotion)
+            # 3. Text emotion
+            text_emo = detect_emotion_from_text(user_text)
+
+            # 4. Merge — always display badge (including Neutral)
+            final_emotion = merge_emotions(audio_emo, text_emo)
+            render_emotion_badge(final_emotion)
+
+            st.markdown(f'<div class="transcript-box">📝 Heard: <b>"{user_text}"</b></div>', unsafe_allow_html=True)
+            process_user_input(user_text, openrouter_key, weather_key, active_lang, auto_detect_lang, final_emotion)
             st.rerun()
+
 
 # ── Handle text send ──────────────────────────────────────────────────────────
 if send_btn and text_input.strip():
-    # Detect emotion from words for text input too
-    detected_emotion = detect_emotion_from_text(text_input.strip())
-    if detected_emotion["label"] != "Neutral":
-        render_emotion_badge(detected_emotion)
-    process_user_input(text_input.strip(), openrouter_key, weather_key, active_lang,
-                       auto_detect_lang, detected_emotion)
+    text_emo = detect_emotion_from_text(text_input.strip())
+    render_emotion_badge(text_emo)   # always show, even Neutral
+    process_user_input(text_input.strip(), openrouter_key, weather_key, active_lang, auto_detect_lang, text_emo)
     st.rerun()
+
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown(
     '<div class="vox-footer">'
-    'Klyra · Groq Whisper · OpenRouter GPT-4o-mini · gTTS · Streamlit'
+    'Klyra · Groq Whisper · OpenRouter GPT-4o-mini · gTTS · SpeechBrain · Streamlit'
     '</div>',
     unsafe_allow_html=True,
 )
