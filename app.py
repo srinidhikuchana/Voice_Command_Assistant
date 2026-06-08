@@ -530,7 +530,7 @@ def perform_web_search(query: str) -> str:
 def get_ai_response(history: list, openrouter_key: str, detected_emotion: dict = None) -> str:
     system = SYSTEM_PROMPT
     if detected_emotion and detected_emotion.get("label") not in ("Neutral", None):
-         += (
+        system += (
             f"\n\nCURRENT USER EMOTION DETECTED: {detected_emotion['label']} "
             f"(confidence {detected_emotion.get('confidence', 0):.0f}%, source: {detected_emotion.get('source','text')}). "
             "Adjust your response tone accordingly as instructed above."
