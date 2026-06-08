@@ -789,9 +789,9 @@ with st.sidebar:
         st.rerun()
 
     st.markdown(
-        "<div style='font-size:10px;color:#b8a898;margin-top:1rem;text-align:center;letter-spacing:1px;'>"
-        "Created by Siri Chandana,<br>Srinidhi &amp; Sudeepthi</div>",
-        unsafe_allow_html=True,
+    "<div style='font-size:10px;color:#b8a898;margin-top:1rem;text-align:center;letter-spacing:1px;'>"
+    "Created by Srinidhi</div>",
+    unsafe_allow_html=True,
     )
     st.markdown(
         "<div style='font-size:10px;color:#b8a898;margin-top:0.5rem;text-align:center;letter-spacing:1px;'>"
