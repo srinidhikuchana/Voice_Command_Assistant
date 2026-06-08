@@ -309,7 +309,7 @@ current_year = date.today().year
 
 SYSTEM_PROMPT = (
     f"You are Klyra (pronounced Kly-ra), a friendly, helpful AI voice assistant. "
-    f"You were created by Siri Chandana, Srinidhi, and Sudeepthi. "
+    f"You were created by Srinidhi. "
     f"TODAY'S DATE IS {today_str}. THE CURRENT YEAR IS {current_year}. "
     "CRITICAL: You are running in April 2026. Any event, release, or date you know from training "
     "that was scheduled for 2025 may have already happened — and events scheduled for 2026 are current. "
@@ -530,7 +530,7 @@ def perform_web_search(query: str) -> str:
 def get_ai_response(history: list, openrouter_key: str, detected_emotion: dict = None) -> str:
     system = SYSTEM_PROMPT
     if detected_emotion and detected_emotion.get("label") not in ("Neutral", None):
-        system += (
+         += (
             f"\n\nCURRENT USER EMOTION DETECTED: {detected_emotion['label']} "
             f"(confidence {detected_emotion.get('confidence', 0):.0f}%, source: {detected_emotion.get('source','text')}). "
             "Adjust your response tone accordingly as instructed above."
